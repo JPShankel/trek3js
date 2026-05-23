@@ -1,8 +1,11 @@
 import { render, screen } from '@testing-library/react';
 import App from './App';
 
-test('renders learn react link', () => {
+test('renders trek bridge interface', () => {
   render(<App />);
-  const linkElement = screen.getByText(/learn react/i);
-  expect(linkElement).toBeInTheDocument();
+
+  expect(screen.getByRole('heading', { name: /sensor readout/i })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: /command panel/i })).toBeInTheDocument();
+  expect(screen.getByLabelText(/short range sensor grid/i)).toBeInTheDocument();
+  expect(screen.getByLabelText(/long range sensor grid/i)).toBeInTheDocument();
 });
