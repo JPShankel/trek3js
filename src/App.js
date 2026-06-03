@@ -68,6 +68,11 @@ function generateGalaxy() {
   );
 }
 
+function countEnemies(galaxy) {
+  return galaxy.reduce((total, row) =>
+    total + row.reduce((sum, q) => sum + q.enemies, 0), 0);
+}
+
 function cloneGalaxy(galaxy) {
   return galaxy.map((row) =>
     row.map((quadrant) => ({
@@ -109,7 +114,7 @@ function initializeGame() {
     galaxy: placeShip(galaxy, quadrant, sector),
     shipQuadrant: quadrant,
     shipSector: sector,
-    stardate: 3200 + randomInt(400),
+    stardate: countEnemies(galaxy) * 3,
     commandLog: 'Bridge online. Short range sensors and long range scan ready.',
     revealedQuadrants: revealAround(new Set(), quadrant.row, quadrant.col),
     torpedoes: 10,
@@ -152,7 +157,7 @@ function moveShip(game, rowDelta, colDelta) {
     ...game,
     galaxy: nextGalaxy,
     shipSector: { row: sectorRow, col: sectorCol },
-    stardate: game.stardate + 1,
+    stardate: Math.round((game.stardate - 0.1) * 10) / 10,
     commandLog: `Impulse complete. Ship now in sector ${sectorRow + 1}-${sectorCol + 1}.`,
   };
 }
@@ -187,7 +192,7 @@ function warpShip(game, rowDelta, colDelta) {
     galaxy: nextGalaxy,
     shipQuadrant: { row: quadrantRow, col: quadrantCol },
     shipSector: destinationSector,
-    stardate: game.stardate + 5,
+    stardate: game.stardate - 1,
     commandLog: `Warp complete. Entered quadrant ${quadrantRow + 1}-${quadrantCol + 1}.`,
     revealedQuadrants: revealAround(game.revealedQuadrants, quadrantRow, quadrantCol),
   };
@@ -399,8 +404,8 @@ function App() {
             </strong>
           </div>
           <div>
-            <span className="status-label">Stardate</span>
-            <strong>{game.stardate}</strong>
+            <span className="status-label">Time Remaining</span>
+            <strong>{(game.stardate ?? 0).toFixed(1)}</strong>
           </div>
           <div>
             <span className="status-label">Torpedoes</span>
