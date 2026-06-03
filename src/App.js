@@ -1,4 +1,4 @@
-import { useState, Fragment } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import './App.css';
 
 const GALAXY_SIZE = 8;
@@ -180,7 +180,8 @@ function createShortRangeCells(quadrant, shipSector) {
   return quadrant.sectors.flatMap((row, rowIndex) =>
     row.map((type, colIndex) => ({
       key: `${rowIndex}:${colIndex}`,
-      label: `${rowIndex + 1}-${colIndex + 1}`,
+      row: rowIndex,
+      col: colIndex,
       glyph: type !== 'empty' ? (objectGlyphs[type] ?? '?') : '',
       type,
       active: rowIndex === shipSector.row && colIndex === shipSector.col,
@@ -192,20 +193,144 @@ function createLongRangeCells(galaxy, shipQuadrant) {
   return galaxy.flatMap((row, rowIndex) =>
     row.map((quadrant, colIndex) => ({
       key: `${rowIndex}:${colIndex}`,
-      code: `${quadrant.planets}${quadrant.enemies}${quadrant.bases}`,
-      label: `${rowIndex + 1}-${colIndex + 1}`,
+      row: rowIndex,
+      col: colIndex,
+      code: `${quadrant.planets}${quadrant.bases}${quadrant.enemies}`,
       active: rowIndex === shipQuadrant.row && colIndex === shipQuadrant.col,
     }))
   );
 }
 
+function destroyEnemy(game, row, col) {
+  const nextGalaxy = cloneGalaxy(game.galaxy);
+  const q = nextGalaxy[game.shipQuadrant.row][game.shipQuadrant.col];
+  q.sectors[row][col] = 'empty';
+  q.enemies = Math.max(0, q.enemies - 1);
+  return { ...game, galaxy: nextGalaxy };
+}
+
+function computeImpulsePath(fromRow, fromCol, toRow, toCol) {
+  const steps = [];
+  let r = fromRow;
+  let c = fromCol;
+  while (r !== toRow || c !== toCol) {
+    r += toRow > r ? 1 : toRow < r ? -1 : 0;
+    c += toCol > c ? 1 : toCol < c ? -1 : 0;
+    steps.push({ row: r, col: c });
+  }
+  return steps;
+}
+
 function App() {
   const [game, setGame] = useState(() => initializeGame());
   const [sensorMode, setSensorMode] = useState('short');
+  const [contextMenu, setContextMenu] = useState(null);
+  const [previewPath, setPreviewPath] = useState(null);
+  const [pendingPath, setPendingPath] = useState(null);
+  const [torpedo, setTorpedo] = useState(null);
+  const [laser, setLaser] = useState(null);
+
+  useEffect(() => {
+    if (!pendingPath || pendingPath.length === 0) return;
+    const timer = setTimeout(() => {
+      const next = pendingPath[0];
+      const newGame = moveShip(game, next.row - game.shipSector.row, next.col - game.shipSector.col);
+      setGame(newGame);
+      const moved = newGame.shipSector.row === next.row && newGame.shipSector.col === next.col;
+      const remaining = pendingPath.slice(1);
+      setPendingPath(moved && remaining.length > 0 ? remaining : null);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [game, pendingPath]);
+
+  useEffect(() => {
+    if (!torpedo) return;
+    const timer = setTimeout(() => {
+      const sectors = game.galaxy[game.shipQuadrant.row][game.shipQuadrant.col].sectors;
+      const cellType = sectors[torpedo.pos.row][torpedo.pos.col];
+      if (cellType !== 'empty') {
+        if (cellType === 'enemy') {
+          setGame((current) => destroyEnemy(current, torpedo.pos.row, torpedo.pos.col));
+        }
+        setTorpedo(null);
+      } else if (torpedo.remaining.length > 0) {
+        const [next, ...rest] = torpedo.remaining;
+        setTorpedo({ pos: next, remaining: rest });
+      } else {
+        setTorpedo(null);
+      }
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [torpedo, game]);
+
+  useEffect(() => {
+    if (!laser) return;
+    const timer = setTimeout(() => {
+      setGame((current) => destroyEnemy(current, laser.targetRow, laser.targetCol));
+      setLaser(null);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [laser]);
+
+  function closeContextMenu() {
+    setContextMenu(null);
+    setPreviewPath(null);
+  }
+
+  function handleCellContext(e, gridType, row, col, cellType = 'empty') {
+    e.preventDefault();
+    if (gridType === 'short' && cellType === 'empty') {
+      const sectors = game.galaxy[game.shipQuadrant.row][game.shipQuadrant.col].sectors;
+      const fullPath = computeImpulsePath(game.shipSector.row, game.shipSector.col, row, col);
+      const blockedAt = fullPath.findIndex((p) => sectors[p.row][p.col] !== 'empty');
+      setPreviewPath(blockedAt === -1 ? fullPath : fullPath.slice(0, blockedAt));
+    } else {
+      setPreviewPath(null);
+    }
+    setContextMenu({ gridType, row, col, cellType, x: e.clientX, y: e.clientY });
+  }
+
+  function handleWarpHere() {
+    setGame((current) =>
+      warpShip(current, contextMenu.row - current.shipQuadrant.row, contextMenu.col - current.shipQuadrant.col)
+    );
+    closeContextMenu();
+  }
+
+  function handleImpulseHere() {
+    setPendingPath(previewPath);
+    closeContextMenu();
+  }
+
+  function handleFireTorpedo() {
+    const path = computeImpulsePath(
+      game.shipSector.row, game.shipSector.col,
+      contextMenu.row, contextMenu.col
+    );
+    if (path.length > 0) {
+      setTorpedo({ pos: path[0], remaining: path.slice(1) });
+    }
+    closeContextMenu();
+  }
+
+  function handleFireLaser() {
+    const path = computeImpulsePath(
+      game.shipSector.row, game.shipSector.col,
+      contextMenu.row, contextMenu.col
+    );
+    setLaser({
+      pathSet: new Set(path.map((p) => `${p.row}:${p.col}`)),
+      targetRow: contextMenu.row,
+      targetCol: contextMenu.col,
+    });
+    closeContextMenu();
+  }
 
   const quadrant = game.galaxy[game.shipQuadrant.row][game.shipQuadrant.col];
   const shortRangeCells = createShortRangeCells(quadrant, game.shipSector);
   const longRangeCells = createLongRangeCells(game.galaxy, game.shipQuadrant);
+  const pendingPathSet = pendingPath ? new Set(pendingPath.map((p) => `${p.row}:${p.col}`)) : null;
+  const previewPathSet = previewPath ? new Set(previewPath.map((p) => `${p.row}:${p.col}`)) : null;
 
   return (
     <main className="bridge">
@@ -272,14 +397,23 @@ function App() {
               {Array.from({ length: SECTOR_SIZE }, (_, rowIndex) => (
                 <Fragment key={rowIndex}>
                   <div className="sensor-axis-label">{rowIndex + 1}</div>
-                  {shortRangeCells.slice(rowIndex * SECTOR_SIZE, (rowIndex + 1) * SECTOR_SIZE).map((cell) => (
-                    <div
-                      className={`long-range-cell long-range-cell--${cell.type}${cell.active ? ' active' : ''}`}
-                      key={cell.key}
-                    >
-                      {cell.glyph && <strong>{cell.glyph}</strong>}
-                    </div>
-                  ))}
+                  {shortRangeCells.slice(rowIndex * SECTOR_SIZE, (rowIndex + 1) * SECTOR_SIZE).map((cell) => {
+                    const onPath = pendingPathSet?.has(cell.key);
+                    const onPreview = previewPathSet?.has(cell.key);
+                    const isTorpedo = torpedo?.pos.row === cell.row && torpedo?.pos.col === cell.col;
+                    const isLaser = laser?.pathSet.has(cell.key);
+                    const clickable = !pendingPath && !torpedo && !laser && !cell.active && (cell.type === 'empty' || cell.type === 'enemy');
+                    return (
+                      <div
+                        className={`long-range-cell long-range-cell--${cell.type}${cell.active ? ' active' : ''}${onPath ? ' path' : ''}${onPreview ? ' preview-path' : ''}${isTorpedo ? ' torpedo' : ''}${isLaser ? ' laser' : ''}`}
+                        key={cell.key}
+                        onClick={clickable ? (e) => handleCellContext(e, 'short', cell.row, cell.col, cell.type) : undefined}
+                        onContextMenu={clickable ? (e) => handleCellContext(e, 'short', cell.row, cell.col, cell.type) : undefined}
+                      >
+                        {cell.glyph && <strong>{cell.glyph}</strong>}
+                      </div>
+                    );
+                  })}
                 </Fragment>
               ))}
             </div>
@@ -296,6 +430,8 @@ function App() {
                     <div
                       className={`long-range-cell${cell.active ? ' active' : ''}`}
                       key={cell.key}
+                      onClick={cell.active || pendingPath || torpedo || laser ? undefined : (e) => handleCellContext(e, 'long', cell.row, cell.col)}
+                      onContextMenu={cell.active || pendingPath || torpedo || laser ? undefined : (e) => handleCellContext(e, 'long', cell.row, cell.col)}
                     >
                       <strong>{cell.code}</strong>
                     </div>
@@ -306,56 +442,27 @@ function App() {
           )}
         </article>
 
-        <aside className="side-column">
-          <article className="display-card">
-            <div className="panel-heading">
-              <div>
-                <p className="panel-kicker">Helm Control</p>
-                <h2>Command Panel</h2>
-              </div>
-              <button className="reset-button" onClick={() => setGame(initializeGame())}>
-                New Galaxy
-              </button>
-            </div>
 
-            <div className="command-cluster">
-              <button onClick={() => setGame((current) => moveShip(current, -1, 0))}>
-                Impulse North
-              </button>
-              <button onClick={() => setGame((current) => moveShip(current, 1, 0))}>
-                Impulse South
-              </button>
-              <button onClick={() => setGame((current) => moveShip(current, 0, -1))}>
-                Impulse West
-              </button>
-              <button onClick={() => setGame((current) => moveShip(current, 0, 1))}>
-                Impulse East
-              </button>
-              <button onClick={() => setGame((current) => warpShip(current, -1, 0))}>
-                Warp North
-              </button>
-              <button onClick={() => setGame((current) => warpShip(current, 1, 0))}>
-                Warp South
-              </button>
-              <button onClick={() => setGame((current) => warpShip(current, 0, -1))}>
-                Warp West
-              </button>
-              <button onClick={() => setGame((current) => warpShip(current, 0, 1))}>
-                Warp East
-              </button>
-            </div>
-
-            <div className="legend">
-              <span>* star</span>
-              <span>K enemy</span>
-              <span>B base</span>
-              <span>E ship</span>
-            </div>
-
-            <p className="command-log">{game.commandLog}</p>
-          </article>
-        </aside>
       </section>
+
+      {contextMenu && (
+        <>
+          <div className="context-menu-backdrop" onClick={closeContextMenu} />
+          <div className="context-menu" style={{ left: contextMenu.x, top: contextMenu.y }}>
+            {contextMenu.gridType === 'long' ? (
+              <button onClick={handleWarpHere}>Warp here</button>
+            ) : contextMenu.cellType === 'enemy' ? (
+              <>
+                <button onClick={handleFireTorpedo}>Fire torpedo</button>
+                <button onClick={handleFireLaser}>Fire laser</button>
+              </>
+            ) : (
+              <button onClick={handleImpulseHere}>Impulse here</button>
+            )}
+            <button className="context-menu-cancel" onClick={closeContextMenu}>Cancel</button>
+          </div>
+        </>
+      )}
     </main>
   );
 }

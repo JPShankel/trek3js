@@ -62,7 +62,6 @@
 
 .bridge-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.9fr);
   gap: 24px;
 }
 
@@ -93,10 +92,6 @@
   padding: 24px;
 }
 
-.side-column {
-  display: grid;
-  gap: 24px;
-}
 
 .panel-heading {
   position: relative;
@@ -191,79 +186,90 @@
   box-shadow: inset 0 0 0 1px rgba(122, 229, 130, 0.25);
 }
 
+.long-range-cell.path {
+  border-color: rgba(74, 225, 255, 0.45);
+  background: rgba(74, 225, 255, 0.07);
+}
+
+.long-range-cell.preview-path {
+  border-color: rgba(74, 225, 255, 0.25);
+  background: rgba(74, 225, 255, 0.04);
+}
+
+.long-range-cell.torpedo {
+  border-color: rgba(255, 210, 60, 0.9);
+  background: rgba(255, 210, 60, 0.18);
+  box-shadow: 0 0 10px rgba(255, 210, 60, 0.45);
+}
+
+@keyframes laser-pulse {
+  0%, 100% {
+    background: rgba(255, 70, 55, 0.08);
+    border-color: rgba(255, 70, 55, 0.4);
+    box-shadow: none;
+  }
+  50% {
+    background: rgba(255, 70, 55, 0.28);
+    border-color: rgba(255, 70, 55, 0.95);
+    box-shadow: 0 0 10px rgba(255, 70, 55, 0.5);
+  }
+}
+
+.long-range-cell.laser {
+  animation: laser-pulse 300ms ease-in-out infinite;
+}
+
 .long-range-cell--star strong { color: #ffd166; }
 .long-range-cell--enemy strong { color: #ff5d73; }
 .long-range-cell--base strong { color: #7ae582; }
 .long-range-cell--ship strong { color: #74c0fc; }
 
-.command-cluster {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  padding: 20px 24px 10px;
+
+.context-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
 }
 
-.command-cluster button,
-.reset-button {
+.context-menu {
+  position: fixed;
+  z-index: 101;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  min-width: 150px;
+  background: rgba(8, 17, 30, 0.97);
   border: 1px solid rgba(133, 219, 255, 0.28);
   border-radius: 14px;
-  background:
-    linear-gradient(180deg, rgba(26, 44, 74, 0.96), rgba(10, 20, 37, 0.96));
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+}
+
+.context-menu button {
+  border: none;
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: transparent;
   color: #eef6ff;
   font: inherit;
-  padding: 14px 16px;
+  font-size: 0.9rem;
+  text-align: left;
   cursor: pointer;
-  transition:
-    transform 180ms ease,
-    border-color 180ms ease,
-    background 180ms ease;
+  transition: background 150ms ease;
 }
 
-.command-cluster button:hover,
-.reset-button:hover {
-  transform: translateY(-1px);
-  border-color: rgba(122, 229, 130, 0.55);
-  background:
-    linear-gradient(180deg, rgba(34, 58, 98, 0.96), rgba(12, 24, 44, 0.96));
+.context-menu button:hover {
+  background: rgba(74, 225, 255, 0.12);
 }
 
-.legend {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  padding: 10px 24px 0;
-  color: #8db7d9;
-  font-size: 0.86rem;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-}
-
-.command-log {
-  position: relative;
-  z-index: 1;
-  margin: 18px 24px 24px;
-  padding: 16px 18px;
-  border-radius: 18px;
-  background: rgba(7, 14, 25, 0.86);
-  border: 1px solid rgba(133, 219, 255, 0.14);
-  color: #bfd8ee;
-  line-height: 1.6;
+.context-menu-cancel {
+  color: #8db7d9 !important;
 }
 
 @media (max-width: 1040px) {
-  .hero-panel,
-  .bridge-layout {
+  .hero-panel {
     grid-template-columns: 1fr;
   }
-
-  .panel-caption {
-    text-align: left;
-  }
-
 }
 
 @media (max-width: 720px) {
@@ -279,11 +285,8 @@
     padding: 18px;
   }
 
-  .panel-heading,
-  .command-cluster {
+  .panel-heading {
     padding-left: 18px;
     padding-right: 18px;
   }
-
-
 }
