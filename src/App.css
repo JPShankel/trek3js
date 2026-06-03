@@ -273,6 +273,24 @@
   box-shadow: 0 0 12px rgba(255, 200, 0, 0.45);
 }
 
+.long-range-cell.enemy-torpedo {
+  border-color: rgba(255, 80, 0, 0.95);
+  background: rgba(255, 80, 0, 0.14);
+  box-shadow: 0 0 12px rgba(255, 80, 0, 0.5);
+}
+
+.enemy-laser-line {
+  stroke: #ff6600;
+  stroke-width: 2;
+  stroke-linecap: round;
+  animation: laser-pulse 280ms ease-in-out infinite;
+}
+
+.enemy-laser-line--glow {
+  stroke: rgba(255, 102, 0, 0.3);
+  stroke-width: 10;
+}
+
 .long-range-cell--star strong  { color: #ffc844; text-shadow: 0 0 6px rgba(255, 200, 68, 0.5); }
 .long-range-cell--enemy strong { color: #ff3344; text-shadow: 0 0 6px rgba(255, 51, 68, 0.55); }
 .long-range-cell--base strong  { color: #39ff14; text-shadow: 0 0 6px rgba(57, 255, 20, 0.55); }
@@ -305,6 +323,39 @@
 .laser-line--glow {
   stroke: rgba(255, 34, 17, 0.3);
   stroke-width: 10;
+}
+
+/* ── Event log ────────────────────────────────────────────────────── */
+
+.event-log {
+  margin-top: 20px;
+  padding: 14px 20px 18px;
+  border: 1px solid rgba(0, 229, 255, 0.12);
+  background: rgba(0, 4, 12, 0.92);
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+}
+
+.event-log .panel-kicker {
+  margin-bottom: 10px;
+}
+
+.event-log-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.event-log-entry {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.8rem;
+  color: #00e5ff;
+  letter-spacing: 0.07em;
+  line-height: 1.5;
+}
+
+.event-log-entry::before {
+  content: '▸  ';
+  opacity: 0.5;
 }
 
 /* ── Context menu ─────────────────────────────────────────────────── */
