@@ -1,9 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
-import * as THREE from 'three';
+import { useState, Fragment } from 'react';
 import './App.css';
 
 const GALAXY_SIZE = 8;
 const SECTOR_SIZE = 8;
+
+const objectGlyphs = {
+  star: '*',
+  enemy: 'K',
+  base: 'B',
+  ship: 'E',
+};
 
 function randomInt(max) {
   return Math.floor(Math.random() * max);
@@ -170,6 +176,18 @@ function warpShip(game, rowDelta, colDelta) {
   };
 }
 
+function createShortRangeCells(quadrant, shipSector) {
+  return quadrant.sectors.flatMap((row, rowIndex) =>
+    row.map((type, colIndex) => ({
+      key: `${rowIndex}:${colIndex}`,
+      label: `${rowIndex + 1}-${colIndex + 1}`,
+      glyph: type !== 'empty' ? (objectGlyphs[type] ?? '?') : '',
+      type,
+      active: rowIndex === shipSector.row && colIndex === shipSector.col,
+    }))
+  );
+}
+
 function createLongRangeCells(galaxy, shipQuadrant) {
   return galaxy.flatMap((row, rowIndex) =>
     row.map((quadrant, colIndex) => ({
@@ -181,212 +199,19 @@ function createLongRangeCells(galaxy, shipQuadrant) {
   );
 }
 
-function getQuadrantObjects(quadrant) {
-  const objects = [];
-
-  quadrant.sectors.forEach((row, rowIndex) => {
-    row.forEach((type, colIndex) => {
-      if (type !== 'empty') {
-        objects.push({ type, row: rowIndex, col: colIndex });
-      }
-    });
-  });
-
-  return objects;
-}
-
-function TacticalScene({ quadrant }) {
-  const mountRef = useRef(null);
-
-  useEffect(() => {
-    const mount = mountRef.current;
-
-    if (!mount || process.env.NODE_ENV === 'test') {
-      return undefined;
-    }
-
-    const width = mount.clientWidth;
-    const height = mount.clientHeight;
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color('#050816');
-    scene.fog = new THREE.Fog('#050816', 24, 58);
-
-    const camera = new THREE.PerspectiveCamera(44, width / height, 0.1, 100);
-    camera.position.set(0, 18, 18);
-    camera.lookAt(0, 0, 0);
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setSize(width, height);
-    mount.appendChild(renderer.domElement);
-
-    const ambientLight = new THREE.AmbientLight('#8aa0ff', 1.2);
-    scene.add(ambientLight);
-
-    const keyLight = new THREE.DirectionalLight('#ffffff', 1.5);
-    keyLight.position.set(8, 12, 6);
-    scene.add(keyLight);
-
-    const rimLight = new THREE.PointLight('#49dcb1', 18, 35, 2);
-    rimLight.position.set(-8, 7, -6);
-    scene.add(rimLight);
-
-    const floorMaterial = new THREE.MeshPhongMaterial({
-      color: '#0f1a2f',
-      emissive: '#081120',
-      shininess: 70,
-      specular: '#9de7d7',
-      side: THREE.DoubleSide,
-    });
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(18, 18), floorMaterial);
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.y = -0.9;
-    scene.add(floor);
-
-    const grid = new THREE.GridHelper(16, 8, '#4ae1ff', '#17365d');
-    grid.position.y = -0.88;
-    scene.add(grid);
-
-    const frame = new THREE.LineSegments(
-      new THREE.EdgesGeometry(new THREE.BoxGeometry(16, 0.15, 16)),
-      new THREE.LineBasicMaterial({ color: '#6fe7ff' })
-    );
-    frame.position.y = -0.8;
-    scene.add(frame);
-
-    const animatedMeshes = [];
-    const objects = getQuadrantObjects(quadrant);
-
-    objects.forEach((object) => {
-      const x = (object.col - 3.5) * 2;
-      const z = (object.row - 3.5) * 2;
-      let mesh;
-
-      if (object.type === 'star') {
-        mesh = new THREE.Mesh(
-          new THREE.IcosahedronGeometry(0.45, 0),
-          new THREE.MeshStandardMaterial({
-            color: '#ffd166',
-            emissive: '#ffb703',
-            emissiveIntensity: 0.9,
-            metalness: 0.15,
-            roughness: 0.35,
-          })
-        );
-        mesh.position.set(x, 0.45, z);
-      } else if (object.type === 'enemy') {
-        mesh = new THREE.Mesh(
-          new THREE.OctahedronGeometry(0.58, 0),
-          new THREE.MeshStandardMaterial({
-            color: '#ff5d73',
-            emissive: '#961d37',
-            emissiveIntensity: 0.55,
-            metalness: 0.5,
-            roughness: 0.25,
-          })
-        );
-        mesh.position.set(x, 0.7, z);
-      } else if (object.type === 'base') {
-        mesh = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.25, 0.55, 1.1, 6),
-          new THREE.MeshStandardMaterial({
-            color: '#7ae582',
-            emissive: '#23552a',
-            emissiveIntensity: 0.35,
-            metalness: 0.3,
-            roughness: 0.45,
-          })
-        );
-        mesh.position.set(x, 0.1, z);
-      } else {
-        mesh = new THREE.Mesh(
-          new THREE.ConeGeometry(0.55, 1.35, 4),
-          new THREE.MeshStandardMaterial({
-            color: '#74c0fc',
-            emissive: '#163d69',
-            emissiveIntensity: 0.65,
-            metalness: 0.45,
-            roughness: 0.2,
-          })
-        );
-        mesh.position.set(x, 0.1, z);
-        mesh.rotation.x = Math.PI;
-      }
-
-      scene.add(mesh);
-      animatedMeshes.push({ mesh, type: object.type });
-    });
-
-    let frameId = 0;
-    const clock = new THREE.Clock();
-
-    const renderFrame = () => {
-      const elapsed = clock.getElapsedTime();
-
-      animatedMeshes.forEach(({ mesh, type }) => {
-        mesh.rotation.y += type === 'enemy' ? 0.025 : 0.01;
-
-        if (type === 'star') {
-          mesh.position.y = 0.45 + Math.sin(elapsed * 2 + mesh.position.x) * 0.08;
-        }
-
-        if (type === 'ship') {
-          mesh.position.y = 0.1 + Math.sin(elapsed * 2.4) * 0.12;
-        }
-      });
-
-      renderer.render(scene, camera);
-      frameId = window.requestAnimationFrame(renderFrame);
-    };
-
-    renderFrame();
-
-    const handleResize = () => {
-      const nextWidth = mount.clientWidth;
-      const nextHeight = mount.clientHeight;
-      camera.aspect = nextWidth / nextHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(nextWidth, nextHeight);
-    };
-
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      window.cancelAnimationFrame(frameId);
-      renderer.dispose();
-      scene.traverse((child) => {
-        if (child.geometry) {
-          child.geometry.dispose();
-        }
-
-        if (child.material) {
-          if (Array.isArray(child.material)) {
-            child.material.forEach((material) => material.dispose());
-          } else {
-            child.material.dispose();
-          }
-        }
-      });
-      mount.removeChild(renderer.domElement);
-    };
-  }, [quadrant]);
-
-  return <div className="tactical-scene" ref={mountRef} aria-label="tactical display" />;
-}
-
 function App() {
   const [game, setGame] = useState(() => initializeGame());
   const [sensorMode, setSensorMode] = useState('short');
 
   const quadrant = game.galaxy[game.shipQuadrant.row][game.shipQuadrant.col];
+  const shortRangeCells = createShortRangeCells(quadrant, game.shipSector);
   const longRangeCells = createLongRangeCells(game.galaxy, game.shipQuadrant);
 
   return (
     <main className="bridge">
       <section className="hero-panel">
         <div className="hero-copy">
-          <p className="eyebrow">Super Star Trek / Three.js Tactical Bridge</p>
+          <p className="eyebrow">Super Star Trek / Tactical Bridge</p>
           <h1>Sensor Readout</h1>
           <p className="hero-text">
             Short range shows the 8x8 sector grid for the current quadrant. Long range
@@ -439,17 +264,43 @@ function App() {
           </div>
 
           {sensorMode === 'short' ? (
-            <TacticalScene quadrant={quadrant} />
+            <div className="sensor-grid-outer" aria-label="short range sensor grid">
+              <div className="sensor-corner" />
+              {Array.from({ length: SECTOR_SIZE }, (_, i) => (
+                <div key={i} className="sensor-axis-label">{i + 1}</div>
+              ))}
+              {Array.from({ length: SECTOR_SIZE }, (_, rowIndex) => (
+                <Fragment key={rowIndex}>
+                  <div className="sensor-axis-label">{rowIndex + 1}</div>
+                  {shortRangeCells.slice(rowIndex * SECTOR_SIZE, (rowIndex + 1) * SECTOR_SIZE).map((cell) => (
+                    <div
+                      className={`long-range-cell long-range-cell--${cell.type}${cell.active ? ' active' : ''}`}
+                      key={cell.key}
+                    >
+                      {cell.glyph && <strong>{cell.glyph}</strong>}
+                    </div>
+                  ))}
+                </Fragment>
+              ))}
+            </div>
           ) : (
-            <div className="long-range-grid long-range-grid--expanded" aria-label="long range sensor grid">
-              {longRangeCells.map((cell) => (
-                <div
-                  className={`long-range-cell${cell.active ? ' active' : ''}`}
-                  key={cell.key}
-                >
-                  <span>{cell.label}</span>
-                  <strong>{cell.code}</strong>
-                </div>
+            <div className="sensor-grid-outer" aria-label="long range sensor grid">
+              <div className="sensor-corner" />
+              {Array.from({ length: GALAXY_SIZE }, (_, i) => (
+                <div key={i} className="sensor-axis-label">{i + 1}</div>
+              ))}
+              {Array.from({ length: GALAXY_SIZE }, (_, rowIndex) => (
+                <Fragment key={rowIndex}>
+                  <div className="sensor-axis-label">{rowIndex + 1}</div>
+                  {longRangeCells.slice(rowIndex * GALAXY_SIZE, (rowIndex + 1) * GALAXY_SIZE).map((cell) => (
+                    <div
+                      className={`long-range-cell${cell.active ? ' active' : ''}`}
+                      key={cell.key}
+                    >
+                      <strong>{cell.code}</strong>
+                    </div>
+                  ))}
+                </Fragment>
               ))}
             </div>
           )}
