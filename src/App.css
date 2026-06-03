@@ -1,8 +1,12 @@
 /* ── Bridge shell ─────────────────────────────────────────────────── */
 
 .bridge {
-  min-height: 100vh;
-  padding: 32px;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 28px 20px;
   color: #7abcd8;
   background-image: repeating-linear-gradient(
     0deg,
@@ -20,14 +24,14 @@
   grid-template-columns: 1.5fr 1fr;
   gap: 24px;
   align-items: end;
-  margin-bottom: 28px;
+  flex-shrink: 0;
 }
 
 .hero-copy h1 {
   margin: 0;
   font-family: 'Orbitron', sans-serif;
   font-weight: 700;
-  font-size: 1.9rem;
+  font-size: 1.5rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: #00e5ff;
@@ -77,7 +81,7 @@
 }
 
 .status-strip div {
-  padding: 14px 18px;
+  padding: 10px 18px;
   border-right: 1px solid rgba(0, 229, 255, 0.1);
 }
 
@@ -87,9 +91,9 @@
 
 .status-strip strong {
   display: block;
-  margin-top: 8px;
+  margin-top: 4px;
   font-family: 'Orbitron', sans-serif;
-  font-size: 1.15rem;
+  font-size: 1rem;
   font-weight: 600;
   letter-spacing: 0.06em;
   color: #00e5ff;
@@ -101,6 +105,8 @@
 .bridge-layout {
   display: grid;
   gap: 24px;
+  flex: 1;
+  min-height: 0;
 }
 
 /* ── Display card ─────────────────────────────────────────────────── */
@@ -137,7 +143,10 @@
 }
 
 .tactical-card {
-  padding: 24px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 /* ── Panel heading ────────────────────────────────────────────────── */
@@ -149,7 +158,8 @@
   justify-content: space-between;
   align-items: start;
   gap: 16px;
-  padding: 22px 24px 0;
+  padding: 16px 24px 0;
+  flex-shrink: 0;
 }
 
 .panel-caption {
@@ -195,6 +205,10 @@
 
 .sensor-grid-wrap {
   position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .sensor-grid-outer {
@@ -202,8 +216,17 @@
   z-index: 1;
   display: grid;
   grid-template-columns: 22px repeat(8, minmax(0, 1fr));
+  grid-template-rows: auto repeat(8, 1fr);
   gap: 3px;
-  padding: 14px 0 18px;
+  padding: 10px 24px 16px;
+  flex: 1;
+  min-height: 0;
+}
+
+/* long-range grid is a direct child of tactical-card, not inside .sensor-grid-wrap */
+.tactical-card > .sensor-grid-outer {
+  flex: 1;
+  min-height: 0;
 }
 
 .sensor-axis-label {
@@ -222,16 +245,18 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 4px;
+  padding: 2px;
   border: 1px solid rgba(0, 229, 255, 0.1);
   background: rgba(0, 6, 16, 0.88);
-  min-height: 40px;
+  min-height: 0;
+  overflow: hidden;
   transition: border-color 120ms ease, background 120ms ease;
 }
 
 .long-range-cell svg {
   display: block;
-  flex-shrink: 0;
+  width: min(26px, 80%);
+  height: auto;
 }
 
 .long-range-cell strong {
@@ -267,16 +292,29 @@
   background: rgba(0, 229, 255, 0.03);
 }
 
-.long-range-cell.torpedo {
-  border-color: rgba(255, 200, 0, 0.95);
-  background: rgba(255, 200, 0, 0.12);
-  box-shadow: 0 0 12px rgba(255, 200, 0, 0.45);
+@keyframes torpedo-pulse {
+  0%, 100% { opacity: 0.6; }
+  50%       { opacity: 1; }
 }
 
-.long-range-cell.enemy-torpedo {
-  border-color: rgba(255, 80, 0, 0.95);
-  background: rgba(255, 80, 0, 0.14);
-  box-shadow: 0 0 12px rgba(255, 80, 0, 0.5);
+.torpedo-glow {
+  fill: rgba(255, 210, 0, 0.25);
+  animation: torpedo-pulse 150ms ease-in-out infinite;
+}
+
+.torpedo-core {
+  fill: #ffd700;
+  filter: drop-shadow(0 0 4px #ffd700);
+  animation: torpedo-pulse 150ms ease-in-out infinite;
+}
+
+.enemy-torpedo-glow {
+  fill: rgba(255, 90, 0, 0.25);
+}
+
+.enemy-torpedo-core {
+  fill: #ff6600;
+  filter: drop-shadow(0 0 4px #ff6600);
 }
 
 .enemy-laser-line {
@@ -328,11 +366,11 @@
 /* ── Event log ────────────────────────────────────────────────────── */
 
 .event-log {
-  margin-top: 20px;
-  padding: 14px 20px 18px;
-  border: 1px solid rgba(0, 229, 255, 0.12);
-  background: rgba(0, 4, 12, 0.92);
-  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+  flex-shrink: 0;
+  height: 116px;
+  padding: 10px 24px 12px;
+  border-top: 1px solid rgba(0, 229, 255, 0.12);
+  overflow: hidden;
 }
 
 .event-log .panel-kicker {

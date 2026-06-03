@@ -282,6 +282,15 @@ function computeImpulsePath(fromRow, fromCol, toRow, toCol) {
   return steps;
 }
 
+function getCellCenter(wrap, row, col) {
+  if (!wrap) return null;
+  const cell = wrap.querySelector(`[data-cell-key="${row}:${col}"]`);
+  if (!cell) return null;
+  const wr = wrap.getBoundingClientRect();
+  const cr = cell.getBoundingClientRect();
+  return { x: cr.left + cr.width / 2 - wr.left, y: cr.top + cr.height / 2 - wr.top };
+}
+
 function App() {
   const [game, setGame] = useState(() => initializeGame());
   const [sensorMode, setSensorMode] = useState('short');
@@ -335,9 +344,12 @@ function App() {
           addLog(`Torpedo detonated on ${cellType} at sector ${torpedo.pos.row + 1}-${torpedo.pos.col + 1}`);
         }
         setTorpedo(null);
+        const turns = planEnemyTurns(game);
+        if (turns.length > 0) setEnemyTurns(turns);
       } else if (torpedo.remaining.length > 0) {
         const [next, ...rest] = torpedo.remaining;
-        setTorpedo({ pos: next, remaining: rest });
+        const pos = getCellCenter(sensorGridRef.current, next.row, next.col);
+        setTorpedo({ pos: next, remaining: rest, x: pos?.x ?? torpedo.x, y: pos?.y ?? torpedo.y });
       } else {
         setTorpedo(null);
       }
@@ -351,6 +363,8 @@ function App() {
       addLog(`Laser cannons: target destroyed at sector ${laser.targetRow + 1}-${laser.targetCol + 1}`);
       setGame((current) => destroyEnemy(current, laser.targetRow, laser.targetCol));
       setLaser(null);
+      const turns = planEnemyTurns(game);
+      if (turns.length > 0) setEnemyTurns(turns);
     }, 2000);
     return () => clearTimeout(timer);
   }, [laser]);
@@ -371,7 +385,10 @@ function App() {
       } else if (turn.type === 'torpedo' && enemyStillThere) {
         addLog(`Incoming torpedo from sector ${turn.fromRow + 1}-${turn.fromCol + 1}`);
         const path = computeImpulsePath(turn.fromRow, turn.fromCol, game.shipSector.row, game.shipSector.col);
-        if (path.length > 0) setEnemyTorpedoAnim({ pos: path[0], remaining: path.slice(1) });
+        if (path.length > 0) {
+          const pos = getCellCenter(sensorGridRef.current, path[0].row, path[0].col);
+          setEnemyTorpedoAnim({ pos: path[0], remaining: path.slice(1), x: pos?.x ?? 0, y: pos?.y ?? 0 });
+        }
       } else if (turn.type === 'laser' && enemyStillThere) {
         addLog(`Enemy laser fire from sector ${turn.fromRow + 1}-${turn.fromCol + 1}`);
         const wrap = sensorGridRef.current;
@@ -407,7 +424,8 @@ function App() {
         setEnemyTorpedoAnim(null);
       } else if (enemyTorpedoAnim.remaining.length > 0) {
         const [next, ...rest] = enemyTorpedoAnim.remaining;
-        setEnemyTorpedoAnim({ pos: next, remaining: rest });
+        const pos = getCellCenter(sensorGridRef.current, next.row, next.col);
+        setEnemyTorpedoAnim({ pos: next, remaining: rest, x: pos?.x ?? enemyTorpedoAnim.x, y: pos?.y ?? enemyTorpedoAnim.y });
       } else {
         setEnemyTorpedoAnim(null);
       }
@@ -466,7 +484,8 @@ function App() {
     );
     if (path.length > 0) {
       addLog(`Torpedo away — targeting sector ${contextMenu.row + 1}-${contextMenu.col + 1}`);
-      setTorpedo({ pos: path[0], remaining: path.slice(1) });
+      const pos = getCellCenter(sensorGridRef.current, path[0].row, path[0].col);
+      setTorpedo({ pos: path[0], remaining: path.slice(1), x: pos?.x ?? 0, y: pos?.y ?? 0 });
       setGame((current) => ({ ...current, torpedoes: Math.max(0, (current.torpedoes ?? 10) - 1) }));
     }
     closeContextMenu();
@@ -507,11 +526,6 @@ function App() {
         <div className="hero-copy">
           <p className="eyebrow">Super Star Trek / Tactical Bridge</p>
           <h1>Sensor Readout</h1>
-          <p className="hero-text">
-            Short range shows the 8x8 sector grid for the current quadrant. Long range
-            shows the full galaxy — each quadrant tagged with a three-digit code for
-            planets, enemies, and bases.
-          </p>
         </div>
 
         <div className="status-strip" aria-label="ship status">
@@ -574,8 +588,6 @@ function App() {
                     {shortRangeCells.slice(rowIndex * SECTOR_SIZE, (rowIndex + 1) * SECTOR_SIZE).map((cell) => {
                       const onPath = pendingPathSet?.has(cell.key);
                       const onPreview = previewPathSet?.has(cell.key);
-                      const isTorpedo = torpedo?.pos.row === cell.row && torpedo?.pos.col === cell.col;
-                      const isEnemyTorpedo = enemyTorpedoAnim?.pos.row === cell.row && enemyTorpedoAnim?.pos.col === cell.col;
                       const isAdjacentBase = cell.type === 'base' && isCardinallyAdjacent(
                         game.shipSector.row, game.shipSector.col, cell.row, cell.col
                       );
@@ -584,7 +596,7 @@ function App() {
                         (cell.type === 'empty' || cell.type === 'enemy' || isAdjacentBase);
                       return (
                         <div
-                          className={`long-range-cell long-range-cell--${cell.type}${cell.active ? ' active' : ''}${onPath ? ' path' : ''}${onPreview ? ' preview-path' : ''}${isTorpedo ? ' torpedo' : ''}${isEnemyTorpedo ? ' enemy-torpedo' : ''}`}
+                          className={`long-range-cell long-range-cell--${cell.type}${cell.active ? ' active' : ''}${onPath ? ' path' : ''}${onPreview ? ' preview-path' : ''}`}
                           key={cell.key}
                           data-cell-key={cell.key}
                           onClick={clickable ? (e) => handleCellContext(e, 'short', cell.row, cell.col, cell.type) : undefined}
@@ -597,7 +609,7 @@ function App() {
                   </Fragment>
                 ))}
               </div>
-              {(laser || enemyLaserAnim) && (
+              {(laser || enemyLaserAnim || torpedo || enemyTorpedoAnim) && (
                 <svg className="laser-svg" aria-hidden="true">
                   {laser && <>
                     <line className="laser-line laser-line--glow" x1={laser.x1} y1={laser.y1} x2={laser.x2} y2={laser.y2} />
@@ -606,6 +618,14 @@ function App() {
                   {enemyLaserAnim && <>
                     <line className="laser-line enemy-laser-line--glow" x1={enemyLaserAnim.x1} y1={enemyLaserAnim.y1} x2={enemyLaserAnim.x2} y2={enemyLaserAnim.y2} />
                     <line className="laser-line enemy-laser-line" x1={enemyLaserAnim.x1} y1={enemyLaserAnim.y1} x2={enemyLaserAnim.x2} y2={enemyLaserAnim.y2} />
+                  </>}
+                  {torpedo && <>
+                    <circle cx={torpedo.x} cy={torpedo.y} r="8" className="torpedo-glow" />
+                    <circle cx={torpedo.x} cy={torpedo.y} r="3.5" className="torpedo-core" />
+                  </>}
+                  {enemyTorpedoAnim && <>
+                    <circle cx={enemyTorpedoAnim.x} cy={enemyTorpedoAnim.y} r="8" className="torpedo-glow enemy-torpedo-glow" />
+                    <circle cx={enemyTorpedoAnim.x} cy={enemyTorpedoAnim.y} r="3.5" className="torpedo-core enemy-torpedo-core" />
                   </>}
                 </svg>
               )}
@@ -639,27 +659,26 @@ function App() {
               ))}
             </div>
           )}
+          <div className="event-log">
+            <p className="panel-kicker">Ship's Log</p>
+            <div className="event-log-entries">
+              {eventLog.length === 0
+                ? <div className="event-log-entry" style={{ opacity: 0.3 }}>Awaiting events…</div>
+                : eventLog.map((entry, i) => (
+                    <div
+                      key={entry.id}
+                      className="event-log-entry"
+                      style={{ opacity: Math.max(0.2, 1 - i * 0.14) }}
+                    >
+                      {entry.text}
+                    </div>
+                  ))
+              }
+            </div>
+          </div>
         </article>
 
 
-      </section>
-
-      <section className="event-log">
-        <p className="panel-kicker">Ship's Log</p>
-        <div className="event-log-entries">
-          {eventLog.length === 0
-            ? <div className="event-log-entry" style={{ opacity: 0.3 }}>Awaiting events…</div>
-            : eventLog.map((entry, i) => (
-                <div
-                  key={entry.id}
-                  className="event-log-entry"
-                  style={{ opacity: Math.max(0.2, 1 - i * 0.14) }}
-                >
-                  {entry.text}
-                </div>
-              ))
-          }
-        </div>
       </section>
 
       {contextMenu && (
