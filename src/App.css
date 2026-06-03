@@ -229,10 +229,21 @@
   transition: border-color 120ms ease, background 120ms ease;
 }
 
+.long-range-cell svg {
+  display: block;
+  flex-shrink: 0;
+}
+
 .long-range-cell strong {
   font-family: 'Share Tech Mono', monospace;
   font-size: 0.82rem;
   letter-spacing: 0.05em;
+}
+
+.long-range-cell.selected {
+  border-color: rgba(0, 229, 255, 0.7);
+  background: rgba(0, 229, 255, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(0, 229, 255, 0.3), 0 0 8px rgba(0, 229, 255, 0.15);
 }
 
 .long-range-cell.fogged {

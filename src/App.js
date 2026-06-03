@@ -1,15 +1,9 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
 import './App.css';
+import { CellGlyph } from './Glyphs';
 
 const GALAXY_SIZE = 8;
 const SECTOR_SIZE = 8;
-
-const objectGlyphs = {
-  star: '*',
-  enemy: 'K',
-  base: 'B',
-  ship: 'E',
-};
 
 function randomInt(max) {
   return Math.floor(Math.random() * max);
@@ -204,7 +198,6 @@ function createShortRangeCells(quadrant, shipSector) {
       key: `${rowIndex}:${colIndex}`,
       row: rowIndex,
       col: colIndex,
-      glyph: type !== 'empty' ? (objectGlyphs[type] ?? '?') : '',
       type,
       active: rowIndex === shipSector.row && colIndex === shipSector.col,
     }))
@@ -464,7 +457,7 @@ function App() {
                           onClick={clickable ? (e) => handleCellContext(e, 'short', cell.row, cell.col, cell.type) : undefined}
                           onContextMenu={clickable ? (e) => handleCellContext(e, 'short', cell.row, cell.col, cell.type) : undefined}
                         >
-                          {cell.glyph && <strong>{cell.glyph}</strong>}
+                          {cell.type !== 'empty' && <CellGlyph type={cell.type} />}
                         </div>
                       );
                     })}
@@ -490,9 +483,11 @@ function App() {
                   {longRangeCells.slice(rowIndex * GALAXY_SIZE, (rowIndex + 1) * GALAXY_SIZE).map((cell) => {
                     const isRevealed = game.revealedQuadrants.has(cell.key);
                     const blocked = cell.active || pendingPath || torpedo || laser;
+                    const isSelected = contextMenu?.gridType === 'long' &&
+                      contextMenu.row === cell.row && contextMenu.col === cell.col;
                     return (
                       <div
-                        className={`long-range-cell${cell.active ? ' active' : ''}${!isRevealed ? ' fogged' : ''}`}
+                        className={`long-range-cell${cell.active ? ' active' : ''}${!isRevealed ? ' fogged' : ''}${isSelected ? ' selected' : ''}`}
                         key={cell.key}
                         onClick={blocked ? undefined : (e) => handleCellContext(e, 'long', cell.row, cell.col)}
                         onContextMenu={blocked ? undefined : (e) => handleCellContext(e, 'long', cell.row, cell.col)}
