@@ -1,10 +1,9 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Share+Tech+Mono&display=swap');
+
 :root {
   color-scheme: dark;
-  font-family: 'Trebuchet MS', 'Segoe UI', sans-serif;
-  background:
-    radial-gradient(circle at top, #112644 0%, transparent 32%),
-    radial-gradient(circle at bottom right, rgba(122, 229, 130, 0.08), transparent 26%),
-    linear-gradient(180deg, #07111f 0%, #02050c 100%);
+  font-family: 'Share Tech Mono', 'Courier New', monospace;
+  background: #010810;
 }
 
 * {
@@ -12,37 +11,39 @@
 }
 
 html {
-  background: #02050c;
+  background: #010810;
 }
 
 body {
   margin: 0;
   min-width: 320px;
   background:
-    radial-gradient(circle at 20% 20%, rgba(76, 176, 255, 0.14), transparent 25%),
-    radial-gradient(circle at 80% 0%, rgba(122, 229, 130, 0.08), transparent 22%),
-    linear-gradient(180deg, #07111f 0%, #02050c 100%);
+    radial-gradient(ellipse at 20% 10%, rgba(0, 60, 120, 0.35) 0%, transparent 40%),
+    radial-gradient(ellipse at 80% 90%, rgba(0, 30, 80, 0.25) 0%, transparent 40%),
+    #010810;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* starfield */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
   pointer-events: none;
   background-image:
-    radial-gradient(circle at 10% 30%, rgba(255, 255, 255, 0.55) 0 1px, transparent 1.5px),
-    radial-gradient(circle at 70% 20%, rgba(255, 255, 255, 0.32) 0 1px, transparent 1.5px),
-    radial-gradient(circle at 30% 80%, rgba(255, 255, 255, 0.28) 0 1px, transparent 1.5px),
-    radial-gradient(circle at 90% 60%, rgba(255, 255, 255, 0.4) 0 1px, transparent 1.5px);
-  background-size: 220px 220px;
-  opacity: 0.65;
+    radial-gradient(circle at 10% 30%, rgba(255, 255, 255, 0.7) 0 0.8px, transparent 1px),
+    radial-gradient(circle at 70% 20%, rgba(255, 255, 255, 0.5) 0 0.8px, transparent 1px),
+    radial-gradient(circle at 30% 80%, rgba(180, 220, 255, 0.4) 0 0.8px, transparent 1px),
+    radial-gradient(circle at 90% 60%, rgba(255, 255, 255, 0.55) 0 0.8px, transparent 1px),
+    radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.3) 0 0.6px, transparent 1px),
+    radial-gradient(circle at 15% 70%, rgba(180, 230, 255, 0.45) 0 0.6px, transparent 1px);
+  background-size: 300px 300px, 200px 200px, 250px 250px, 180px 180px, 220px 220px, 160px 160px;
+  opacity: 0.7;
 }
 
-button,
-code {
-  font-family: inherit;
+button {
+  font-family: 'Share Tech Mono', 'Courier New', monospace;
 }
 
 #root {
