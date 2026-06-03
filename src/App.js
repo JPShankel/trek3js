@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import './App.css';
 
 const GALAXY_SIZE = 8;
@@ -83,6 +83,20 @@ function placeShip(galaxy, quadrant, sector) {
   return nextGalaxy;
 }
 
+function revealAround(revealed, row, col) {
+  const next = new Set(revealed);
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      const r = row + dr;
+      const c = col + dc;
+      if (r >= 0 && r < GALAXY_SIZE && c >= 0 && c < GALAXY_SIZE) {
+        next.add(`${r}:${c}`);
+      }
+    }
+  }
+  return next;
+}
+
 function initializeGame() {
   const galaxy = generateGalaxy();
   const quadrant = {
@@ -97,6 +111,8 @@ function initializeGame() {
     shipSector: sector,
     stardate: 3200 + randomInt(400),
     commandLog: 'Bridge online. Short range sensors and long range scan ready.',
+    revealedQuadrants: revealAround(new Set(), quadrant.row, quadrant.col),
+    torpedoes: 10,
   };
 }
 
@@ -173,6 +189,7 @@ function warpShip(game, rowDelta, colDelta) {
     shipSector: destinationSector,
     stardate: game.stardate + 5,
     commandLog: `Warp complete. Entered quadrant ${quadrantRow + 1}-${quadrantCol + 1}.`,
+    revealedQuadrants: revealAround(game.revealedQuadrants, quadrantRow, quadrantCol),
   };
 }
 
@@ -199,6 +216,12 @@ function createLongRangeCells(galaxy, shipQuadrant) {
       active: rowIndex === shipQuadrant.row && colIndex === shipQuadrant.col,
     }))
   );
+}
+
+function isCardinallyAdjacent(r1, c1, r2, c2) {
+  const dr = Math.abs(r1 - r2);
+  const dc = Math.abs(c1 - c2);
+  return (dr === 1 && dc === 0) || (dr === 0 && dc === 1);
 }
 
 function destroyEnemy(game, row, col) {
@@ -229,6 +252,7 @@ function App() {
   const [pendingPath, setPendingPath] = useState(null);
   const [torpedo, setTorpedo] = useState(null);
   const [laser, setLaser] = useState(null);
+  const sensorGridRef = useRef(null);
 
   useEffect(() => {
     if (!pendingPath || pendingPath.length === 0) return;
@@ -302,24 +326,40 @@ function App() {
     closeContextMenu();
   }
 
+  function handleDockHere() {
+    setGame((current) => ({ ...current, torpedoes: 10 }));
+    closeContextMenu();
+  }
+
   function handleFireTorpedo() {
+    if ((game.torpedoes ?? 10) <= 0) return;
     const path = computeImpulsePath(
       game.shipSector.row, game.shipSector.col,
       contextMenu.row, contextMenu.col
     );
     if (path.length > 0) {
       setTorpedo({ pos: path[0], remaining: path.slice(1) });
+      setGame((current) => ({ ...current, torpedoes: Math.max(0, (current.torpedoes ?? 10) - 1) }));
     }
     closeContextMenu();
   }
 
   function handleFireLaser() {
-    const path = computeImpulsePath(
-      game.shipSector.row, game.shipSector.col,
-      contextMenu.row, contextMenu.col
-    );
+    const wrap = sensorGridRef.current;
+    if (!wrap) return;
+    const wrapRect = wrap.getBoundingClientRect();
+    const shipKey = `${game.shipSector.row}:${game.shipSector.col}`;
+    const targetKey = `${contextMenu.row}:${contextMenu.col}`;
+    const shipEl = wrap.querySelector(`[data-cell-key="${shipKey}"]`);
+    const targetEl = wrap.querySelector(`[data-cell-key="${targetKey}"]`);
+    if (!shipEl || !targetEl) return;
+    const sr = shipEl.getBoundingClientRect();
+    const tr = targetEl.getBoundingClientRect();
     setLaser({
-      pathSet: new Set(path.map((p) => `${p.row}:${p.col}`)),
+      x1: sr.left + sr.width / 2 - wrapRect.left,
+      y1: sr.top + sr.height / 2 - wrapRect.top,
+      x2: tr.left + tr.width / 2 - wrapRect.left,
+      y2: tr.top + tr.height / 2 - wrapRect.top,
       targetRow: contextMenu.row,
       targetCol: contextMenu.col,
     });
@@ -362,6 +402,10 @@ function App() {
             <span className="status-label">Stardate</span>
             <strong>{game.stardate}</strong>
           </div>
+          <div>
+            <span className="status-label">Torpedoes</span>
+            <strong>{game.torpedoes ?? 10}</strong>
+          </div>
         </div>
       </section>
 
@@ -389,33 +433,45 @@ function App() {
           </div>
 
           {sensorMode === 'short' ? (
-            <div className="sensor-grid-outer" aria-label="short range sensor grid">
-              <div className="sensor-corner" />
-              {Array.from({ length: SECTOR_SIZE }, (_, i) => (
-                <div key={i} className="sensor-axis-label">{i + 1}</div>
-              ))}
-              {Array.from({ length: SECTOR_SIZE }, (_, rowIndex) => (
-                <Fragment key={rowIndex}>
-                  <div className="sensor-axis-label">{rowIndex + 1}</div>
-                  {shortRangeCells.slice(rowIndex * SECTOR_SIZE, (rowIndex + 1) * SECTOR_SIZE).map((cell) => {
-                    const onPath = pendingPathSet?.has(cell.key);
-                    const onPreview = previewPathSet?.has(cell.key);
-                    const isTorpedo = torpedo?.pos.row === cell.row && torpedo?.pos.col === cell.col;
-                    const isLaser = laser?.pathSet.has(cell.key);
-                    const clickable = !pendingPath && !torpedo && !laser && !cell.active && (cell.type === 'empty' || cell.type === 'enemy');
-                    return (
-                      <div
-                        className={`long-range-cell long-range-cell--${cell.type}${cell.active ? ' active' : ''}${onPath ? ' path' : ''}${onPreview ? ' preview-path' : ''}${isTorpedo ? ' torpedo' : ''}${isLaser ? ' laser' : ''}`}
-                        key={cell.key}
-                        onClick={clickable ? (e) => handleCellContext(e, 'short', cell.row, cell.col, cell.type) : undefined}
-                        onContextMenu={clickable ? (e) => handleCellContext(e, 'short', cell.row, cell.col, cell.type) : undefined}
-                      >
-                        {cell.glyph && <strong>{cell.glyph}</strong>}
-                      </div>
-                    );
-                  })}
-                </Fragment>
-              ))}
+            <div className="sensor-grid-wrap" ref={sensorGridRef}>
+              <div className="sensor-grid-outer" aria-label="short range sensor grid">
+                <div className="sensor-corner" />
+                {Array.from({ length: SECTOR_SIZE }, (_, i) => (
+                  <div key={i} className="sensor-axis-label">{i + 1}</div>
+                ))}
+                {Array.from({ length: SECTOR_SIZE }, (_, rowIndex) => (
+                  <Fragment key={rowIndex}>
+                    <div className="sensor-axis-label">{rowIndex + 1}</div>
+                    {shortRangeCells.slice(rowIndex * SECTOR_SIZE, (rowIndex + 1) * SECTOR_SIZE).map((cell) => {
+                      const onPath = pendingPathSet?.has(cell.key);
+                      const onPreview = previewPathSet?.has(cell.key);
+                      const isTorpedo = torpedo?.pos.row === cell.row && torpedo?.pos.col === cell.col;
+                      const isAdjacentBase = cell.type === 'base' && isCardinallyAdjacent(
+                        game.shipSector.row, game.shipSector.col, cell.row, cell.col
+                      );
+                      const clickable = !pendingPath && !torpedo && !laser && !cell.active &&
+                        (cell.type === 'empty' || cell.type === 'enemy' || isAdjacentBase);
+                      return (
+                        <div
+                          className={`long-range-cell long-range-cell--${cell.type}${cell.active ? ' active' : ''}${onPath ? ' path' : ''}${onPreview ? ' preview-path' : ''}${isTorpedo ? ' torpedo' : ''}`}
+                          key={cell.key}
+                          data-cell-key={cell.key}
+                          onClick={clickable ? (e) => handleCellContext(e, 'short', cell.row, cell.col, cell.type) : undefined}
+                          onContextMenu={clickable ? (e) => handleCellContext(e, 'short', cell.row, cell.col, cell.type) : undefined}
+                        >
+                          {cell.glyph && <strong>{cell.glyph}</strong>}
+                        </div>
+                      );
+                    })}
+                  </Fragment>
+                ))}
+              </div>
+              {laser && (
+                <svg className="laser-svg" aria-hidden="true">
+                  <line className="laser-line laser-line--glow" x1={laser.x1} y1={laser.y1} x2={laser.x2} y2={laser.y2} />
+                  <line className="laser-line" x1={laser.x1} y1={laser.y1} x2={laser.x2} y2={laser.y2} />
+                </svg>
+              )}
             </div>
           ) : (
             <div className="sensor-grid-outer" aria-label="long range sensor grid">
@@ -426,16 +482,20 @@ function App() {
               {Array.from({ length: GALAXY_SIZE }, (_, rowIndex) => (
                 <Fragment key={rowIndex}>
                   <div className="sensor-axis-label">{rowIndex + 1}</div>
-                  {longRangeCells.slice(rowIndex * GALAXY_SIZE, (rowIndex + 1) * GALAXY_SIZE).map((cell) => (
-                    <div
-                      className={`long-range-cell${cell.active ? ' active' : ''}`}
-                      key={cell.key}
-                      onClick={cell.active || pendingPath || torpedo || laser ? undefined : (e) => handleCellContext(e, 'long', cell.row, cell.col)}
-                      onContextMenu={cell.active || pendingPath || torpedo || laser ? undefined : (e) => handleCellContext(e, 'long', cell.row, cell.col)}
-                    >
-                      <strong>{cell.code}</strong>
-                    </div>
-                  ))}
+                  {longRangeCells.slice(rowIndex * GALAXY_SIZE, (rowIndex + 1) * GALAXY_SIZE).map((cell) => {
+                    const isRevealed = game.revealedQuadrants.has(cell.key);
+                    const blocked = cell.active || pendingPath || torpedo || laser;
+                    return (
+                      <div
+                        className={`long-range-cell${cell.active ? ' active' : ''}${!isRevealed ? ' fogged' : ''}`}
+                        key={cell.key}
+                        onClick={blocked ? undefined : (e) => handleCellContext(e, 'long', cell.row, cell.col)}
+                        onContextMenu={blocked ? undefined : (e) => handleCellContext(e, 'long', cell.row, cell.col)}
+                      >
+                        {isRevealed && <strong>{cell.code}</strong>}
+                      </div>
+                    );
+                  })}
                 </Fragment>
               ))}
             </div>
@@ -453,9 +513,13 @@ function App() {
               <button onClick={handleWarpHere}>Warp here</button>
             ) : contextMenu.cellType === 'enemy' ? (
               <>
-                <button onClick={handleFireTorpedo}>Fire torpedo</button>
+                <button onClick={handleFireTorpedo} disabled={(game.torpedoes ?? 10) <= 0}>
+                  Fire torpedo ({game.torpedoes ?? 10})
+                </button>
                 <button onClick={handleFireLaser}>Fire laser</button>
               </>
+            ) : contextMenu.cellType === 'base' ? (
+              <button onClick={handleDockHere}>Dock here</button>
             ) : (
               <button onClick={handleImpulseHere}>Impulse here</button>
             )}
